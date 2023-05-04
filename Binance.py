@@ -100,15 +100,32 @@ def get_funds():
         print("Error fetching balance: ", e)
         return None
         
+def create_order(side, amount):
+    try:
+        if side == 'buy':
+            order = client.create_order(
+                symbol='BTC/USD',
+                type='market',
+                side=side,
+                amount=amount,
+                params={},
+            )
+        elif side == 'sell':
+            order = client.create_order(
+                symbol='BTC/USD',
+                type='market',
+                side=side,
+                amount=amount,
+                params={},
+            )
+        print(f'Order {order["id"]} has been placed.')
+    except Exception as e:
+        print(f'An error occurred while placing the order: {e}')
+        
 def main():
     creds = get_credentials()
     service = build('gmail', 'v1', credentials=creds)
     user_id = 'me'
-    #test
-    BTC_test = 1.0
-    USD_test = 0.0
-    last_trade_price = 0
-    last_trade_side = 'buy'
     
     while True:
         try:
@@ -142,15 +159,14 @@ def main():
                     diviation = 1-min(current_price_usd, last_trade_price)/max(current_price_usd, last_trade_price)
                     
                     if diviation>0.01 :
-                    
-                        if "long" in output.lower() and last_trade_side == 'sell':   
-                            if last_trade_price > current_price_usd:
-                        
-                                print(f'|Bought')                        
+                        if "long" in output.lower() and last_trade_side == 'sell':  
+                            # Here we use all available USD to buy BTC
+                            create_order('buy', funds['USD']/1.001)
+                            print(f'|Bought')                        
                         elif "short" in output.lower() and last_trade_side == 'buy':
-                            if last_trade_price < current_price_usd:
-                        
-                                print(f'|Sold')                                          
+                            # Here we sell all available BTC
+                            create_order('sell', funds['BTC']/1.001)
+                            print(f'|Sold')                                         
                     print(f'--------------------------------------------------')
                     print(f'')
             time.sleep(1)
