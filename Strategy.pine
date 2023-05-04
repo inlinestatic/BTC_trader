@@ -1,0 +1,40 @@
+//@version=5
+strategy("RSI Strategy", overlay=true)
+
+length = input(14)
+overSold = input(30)
+overBought = input(70)
+price = close
+vrsi = ta.rsi(price, length)
+co = ta.crossover(vrsi, overSold)
+cu = ta.crossunder(vrsi, overBought)
+
+// Initialize variables to store the previous trade's side and price
+var prev_side = ''
+var prev_price = 0.0
+
+if (not na(vrsi))
+    // Enter long position and trigger alert
+    if (co)
+        // Check if the previous trade was a short at a lower price
+        if (prev_side == "short" and prev_price > price)
+            strategy.close("RsiSE")
+            alert("Cannot enter long position - previous short at lower price")
+        else
+            strategy.entry("RsiLE", strategy.long, comment="RsiLE")
+            alert("Long position entered!", alert.freq_once_per_bar)
+        
+if (not na(vrsi))
+    // Enter short position and trigger alert
+    if (cu)
+        // Check if the previous trade was a long at a higher price
+        if (prev_side == "long" and prev_price < price)
+            strategy.close("RsiLE")
+            alert("Cannot enter short position - previous long at higher price")
+        else
+            strategy.entry("RsiSE", strategy.short, comment="RsiSE")
+            alert("Short position entered!", alert.freq_once_per_bar)
+
+// Store the current trade's side and price as the previous trade
+prev_side := strategy.position_size > 0 ? "long" : (strategy.position_size < 0 ? "short" : na)
+prev_price := price
