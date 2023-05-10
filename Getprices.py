@@ -266,8 +266,8 @@ def fetch_data_kucoin():
 
 if __name__ == "__main__":  
     start_time = time.time() 
-    exchange_names = [ 'Binance', 'bybit', 'kraken', 'kucoin']    
-    exchanges = [ fetch_data_binance, fetch_data_bybit, fetch_data_kraken, fetch_data_kucoin]
+    exchange_names = [ 'Binance', 'Bybit', 'Kraken', 'KuCoin', 'UnitedExchange', 'Bitcovia']    
+    exchanges = [ fetch_data_binance, fetch_data_bybit, fetch_data_kraken, fetch_data_kucoin, fetch_data_unitedexchange, fetch_data_bitcovia]
 
     with ThreadPoolExecutor(max_workers=len(exchanges)) as executor:
         results = [executor.submit(exchange) for exchange in exchanges]
@@ -294,7 +294,7 @@ if __name__ == "__main__":
             max_val = max(prices)
             if min_val > 0.0 and max_val > 0 and min_val != max_val:            
                 percentile_diff = ((max_val - min_val) / min_val) * 100
-                if percentile_diff > 5:
+                if percentile_diff > 1:
                     min_index = prices.index(min_val)
                     max_index = prices.index(max_val)
                     trade = f'{pair} Buy from {exchange_names[min_index]}, Sell to {exchange_names[max_index]}, Diff = {percentile_diff:.2f}%'
