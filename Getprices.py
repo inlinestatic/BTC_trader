@@ -4,6 +4,9 @@ import time
 import threading
 from BinanceApi import BinanceClient
 from KucoinApi import KucoinClient
+from KrakenApi import KrakenClient
+from BybitApi import BybitClient
+from BitfinexApi import BitfinexClient
 import concurrent.futures
 
 def fetch_json(url):
@@ -36,11 +39,12 @@ def clean_symbol(symbol):
     
 def get_binance_prices():
     url = 'https://api.binance.com/api/v3/ticker/bookTicker'
-    response = requests.get(url)
-    data = response.json()
+    data = fetch_json(url)
     prices = {}
     for pair_data in data:
         symbol = pair_data['symbol']
+        if not symbol.lower().endswith('usdt'):
+            continue
         ask_price = pair_data['askPrice']
         bid_price = pair_data['bidPrice']
         pair = clean_symbol(symbol)
@@ -54,11 +58,12 @@ def get_binance_prices():
         
 def get_bybit_prices():
     url = 'https://api.bybit.com/v2/public/tickers'
-    response = requests.get(url)
-    data = response.json()['result']
+    data = fetch_json(url)['result']
     prices = {}
     for pair_data in data:
         symbol = pair_data['symbol']
+        if not symbol.lower().endswith('usdt'):
+            continue
         ask_price = pair_data['ask_price']
         bid_price = pair_data['bid_price']
         pair = clean_symbol(symbol)
@@ -72,11 +77,12 @@ def get_bybit_prices():
 
 def get_kraken_prices():
     url = 'https://api.kraken.com/0/public/Ticker'
-    response = requests.get(url)
-    data = response.json()['result']
+    data = fetch_json(url)['result']
     prices = {}
     for pair, pair_data in data.items():
         symbol = pair
+        if not symbol.lower().endswith('usdt'):
+            continue
         ask_price = pair_data['a'][0]
         bid_price = pair_data['b'][0]
         pair = clean_symbol(symbol)
@@ -90,11 +96,94 @@ def get_kraken_prices():
 
 def get_kucoin_prices():
     url = 'https://api.kucoin.com/api/v1/market/allTickers'
-    response = requests.get(url)
-    data = response.json()['data']['ticker']
+    data = fetch_json(url)['data']['ticker']
     prices = {}
     for pair_data in data:
         symbol = pair_data['symbol']
+        if not symbol.lower().endswith('usdt'):
+            continue
+        ask_price = pair_data['sell']
+        bid_price = pair_data['buy']
+        pair = clean_symbol(symbol)
+        prices[pair] = {
+            'pair': pair,
+            'sym': symbol,
+            'askPrice': ask_price,
+            'bidPrice': bid_price
+        }
+    return prices
+
+def get_bitfinex_prices():
+    url = 'https://api.bitfinex.com/v1/tickers'
+    response = fetch_json(url)
+    data = response
+    
+    prices = {}
+    for pair_data in data:
+        symbol = pair_data['pair']        
+        if not symbol.lower().endswith('ust'):
+            continue
+        ask_price = pair_data['ask']
+        bid_price = pair_data['bid']
+        pair = clean_symbol(symbol)
+        prices[pair] = {
+            'pair': pair,
+            'sym': symbol,
+            'askPrice': ask_price,
+            'bidPrice': bid_price
+        }
+    
+    return prices
+
+def get_superex_prices():
+    url = 'https://api.superex.io/v1/tickers'
+    response = fetch_json(url)
+    data = response['data']
+    prices = {}
+    for pair_data in data:
+        symbol = pair_data['symbol']
+        if not symbol.lower().endswith('usdt'):
+            continue
+        ask_price = pair_data['sell']
+        bid_price = pair_data['buy']
+        pair = clean_symbol(symbol)
+        prices[pair] = {
+            'pair': pair,
+            'sym': symbol,
+            'askPrice': ask_price,
+            'bidPrice': bid_price
+        }
+    return prices
+
+def get_hotcoin_prices():
+    url = 'https://api.hotcoin.global/v1/tickers'
+    response = fetch_json(url)
+    data = response['data']
+    prices = {}
+    for pair_data in data:
+        symbol = pair_data['symbol']
+        if not symbol.lower().endswith('usdt'):
+            continue
+        ask_price = pair_data['sell']
+        bid_price = pair_data['buy']
+        pair = clean_symbol(symbol)
+        prices[pair] = {
+            'pair': pair,
+            'sym': symbol,
+            'askPrice': ask_price,
+            'bidPrice': bid_price
+        }
+    return prices
+
+def get_citex_prices():
+    url = 'https://api.citex.co.kr/v1/tickers'
+    response = fetch_json(url)
+    data = response['data']
+    prices = {}
+    for pair_data in data:
+        symbol = pair_data['symbol']
+        if not symbol.lower().endswith('usdt'):
+            continue
         ask_price = pair_data['sell']
         bid_price = pair_data['buy']
         pair = clean_symbol(symbol)
@@ -107,7 +196,8 @@ def get_kucoin_prices():
     return prices
 
 
-exchange_names = ['Binan', 'Bybit', 'Krake', 'KuCoi']
+exchange_names = ['Binan', 'Bybit', 'Krake', 'KuCoi', 'Bitfn']
+
 
 def find_arbitrage_opportunities_parallel(prices):
     matches = []
@@ -120,7 +210,7 @@ def find_arbitrage_opportunities_parallel(prices):
                     futures.append(future)
         for future in concurrent.futures.as_completed(futures):
             result = future.result()
-            if result is not None:
+            if result is not None and len(result) > 0:
                 matches.append(result)
     return matches
 
@@ -136,9 +226,9 @@ def check_prices(prices1, prices2):
                 ask_price1 = float(price1['askPrice'])
                 bid_price2 = float(price2['bidPrice'])
                 
-                if bid_price1 > ask_price2:
+                if ask_price1 > ask_price2:
                     if ask_price2 > 0.0:
-                        diff = (bid_price1 - ask_price2) / ask_price2 * 100
+                        diff = (((ask_price1 - ask_price2) / ask_price2 * 100)+((bid_price1 - bid_price2) / bid_price2 * 100))/2
                         if diff > 0.8:
                             match = {
                                 'buy_from': exchange_names[prices2[0]],
@@ -153,9 +243,9 @@ def check_prices(prices1, prices2):
                                 'diff': diff
                             }
                             matches.append(match)
-                elif bid_price2 > ask_price1:
+                else:
                     if ask_price1 > 0.0:
-                        diff = (bid_price2 - ask_price1) / ask_price1 * 100
+                        diff = (((ask_price2 - ask_price1) / ask_price1 * 100)+((bid_price2 - bid_price1) / bid_price1 * 100))/2
                         if diff > 0.8:
                             match = {
                                 'buy_from': exchange_names[prices1[0]],
@@ -170,81 +260,68 @@ def check_prices(prices1, prices2):
                                 'diff': diff
                             }
                             matches.append(match)
-    print(matches)
     return matches
 
+def move_funds(source_client, destination_client, coin, amount):
+    # Withdraw funds from the source client
+    source_client.withdraw(coin, destination_client.get_deposit_address(coin), amount)
+
+    # Check the deposit history on the destination client to verify the funds are received
+    confirmed = False
+    while not confirmed:
+        deposit_history = destination_client.check_deposit_history(coin)
+        for deposit in deposit_history:
+            if deposit['amount'] == amount:
+                print(f"Successfully moved {amount} {coin} from {source_client} to {destination_client}")
+                return
+
+    print("Failed to move funds.")
 
 if __name__ == '__main__':
-    exchanges = [get_bybit_prices, get_bybit_prices, get_kraken_prices, get_kucoin_prices]
-    prices = []
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = []
-        for i in range(len(exchanges)):
-            future = executor.submit(exchanges[i])
-            futures.append(future)
-        i=0
-        for future in concurrent.futures.as_completed(futures):
-            result = future.result()
-            prices.append((i,result))
-            i+=1
-            
-    matches = find_arbitrage_opportunities_parallel(prices)
-        #price_symbol_map = {}
-        #for i, exchange_pairs in exchanges_result.items():
-        #    for exchange_name, (symbol, price) in exchange_pairs.items():
-        #        if exchange_name not in price_symbol_map:
-        #            price_symbol_map[exchange_name] = {'prices': [0.0]*len(exchanges), 'symbols': ['']*len(exchanges)}
-        #        price_symbol_map[exchange_name]['prices'][i] = price
-        #        price_symbol_map[exchange_name]['symbols'][i] = symbol
-        #
-        #to_add = list()
-        #for pair, data in price_symbol_map.items():
-        #    prices = data['prices']
-        #    symbols = data['symbols']
-        #    min_val = min((price for price in prices if price != 0), default=float('inf'))
-        #    max_val = max(prices)
-        #
-        #    if min_val > 0 and max_val > 0 and min_val != max_val:
-        #        percentile_diff = ((max_val - min_val) / min_val) * 100
-        #        if 2 < percentile_diff < 20:
-        #            min_index = prices.index(min_val)
-        #            max_index = prices.index(max_val)
-        #            trade = {
-        #                'buy_from': exchange_names[min_index],
-        #                'buy_symbol': symbols[min_index],
-        #                'sell_to': exchange_names[max_index],
-        #                'sell_symbol': symbols[max_index],
-        #                'buy_price': min_val,
-        #                'sell_price': max_val,
-        #                'diff': percentile_diff
-        #            }
-        #            to_add.append(trade)
-        #            print(trade)
-        #to_add.sort(key=lambda x: x['diff'], reverse=True)
+    exchanges = [get_bybit_prices, get_bybit_prices, get_kraken_prices, get_kucoin_prices, get_bitfinex_prices]
+    while True:
+        prices = []
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = []
+            for i in range(len(exchanges)):
+                future = executor.submit(exchanges[i])
+                futures.append(future)
+            i=0
+            for future in concurrent.futures.as_completed(futures):
+                result = future.result()
+                prices.append((i,result))
+                i+=1
+                
+        suggestions = find_arbitrage_opportunities_parallel(prices)
+        print('---------------------Arbitrage data----------------------') 
+        for suggestion in suggestions:
+            for items in suggestion:
+                print(items) 
+        print('---------------------------------------------------------')    
         
-        #current_trade = None
-        #for trade in to_add:
-        #    #print(trade)
-        #    if trade['buy_from'] == exchange_names[exchane_id]:
-        #        current_trade = trade 
-        #        break
-        #client1 = None
-        #client2 = None
-        #if exchane_id == 0:
-        #    client1 = BinanceClient.get_instance()
-        #    client2 = KucoinClient.get_instance()
-        #else:
-        #    client2 = BinanceClient.get_instance()
-        #    client1 = KucoinClient.get_instance()
-            
-        #if current_trade is not None:
-        #    fund = client1.get_funds(current_trade['buy_symbol'], buy=True)
-        #    #POSSIBLY NEED TO ACCOUNT FOR FEES
-        #    print('Buy {fund[0]} from {current_trade['buy_from']} ammount {fund[1]}')
-        #    if fund[1]>0:
-        #        ammount = (fund[1] - fund[1]*0.0001)/current_trade['buy_price']
-        #        client1.create_order('buy', ammount, current_trade['buy_symbol'])
-        #   
-        #exchane_id = (exchane_id + 1) % 2
-        #print(i)
+            #current_trade = None
+            #for trade in to_add:
+            #    #print(trade)
+            #    if trade['buy_from'] == exchange_names[exchane_id]:
+            #        current_trade = trade 
+            #        break
+            #client1 = None
+            #client2 = None
+            #if exchane_id == 0:
+            #    client1 = BinanceClient.get_instance()
+            #    client2 = KucoinClient.get_instance()
+            #else:
+            #    client2 = BinanceClient.get_instance()
+            #    client1 = KucoinClient.get_instance()
+                
+            #if current_trade is not None:
+            #    fund = client1.get_funds(current_trade['buy_symbol'], buy=True)
+            #    #POSSIBLY NEED TO ACCOUNT FOR FEES
+            #    print('Buy {fund[0]} from {current_trade['buy_from']} ammount {fund[1]}')
+            #    if fund[1]>0:
+            #        ammount = (fund[1] - fund[1]*0.0001)/current_trade['buy_price']
+            #        client1.create_order('buy', ammount, current_trade['buy_symbol'])
+            #   
+            #exchane_id = (exchane_id + 1) % 2
+            #print(i)
 
