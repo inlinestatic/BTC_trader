@@ -1,9 +1,5 @@
-ccxt
-pickle
-google-auth
-google-auth-oauthlib
-google-auth-httplib2
-google-api-python-client
+pymongo
+requests
 python-binance
 python-kucoin
 bybit

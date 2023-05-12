@@ -23,14 +23,14 @@ if %errorlevel% equ 0 (
     echo MongoDB is already installed. Skipping installation.
 ) else (
     REM Define the MongoDB version
-    set MONGODB_VERSION=4.4.5
+    set MONGODB_VERSION=4.0.28
 
     REM Define the MongoDB installation directory
     set MONGODB_DIR=C:\mongodb
 
     REM Create the MongoDB installation directory
     mkdir %MONGODB_DIR%
-
+    mkdir %MONGODB_DIR%\data
     REM Download MongoDB (with insecure option)
     curl -o %MONGODB_DIR%\mongodb.zip --insecure https://fastdl.mongodb.org/win32/mongodb-win32-x86_64-2008plus-ssl-4.0.28.zip
 	
@@ -38,18 +38,30 @@ if %errorlevel% equ 0 (
     tar -xf %MONGODB_DIR%\mongodb.zip -C %MONGODB_DIR%
 
     REM Rename the extracted directory
-    ren %MONGODB_DIR%\mongodb-win32-x86_64-2008plus-ssl-4.0.28 %MONGODB_DIR%\mongodb
+    xcopy %MONGODB_DIR%\mongodb-win32-x86_64-2008plus-ssl-4.0.28\mongodb  %MONGODB_DIR%\mongodb /E /I 
 
     REM Clean up the downloaded zip file
     del %MONGODB_DIR%\mongodb.zip
-
-    REM Add MongoDB to the system PATH
-    setx /M PATH "%PATH%;%MONGODB_DIR%\mongodb\bin"
+    rmdir /s /q %MONGODB_DIR%\mongodb-win32-x86_64-2008plus-ssl-4.0.28
+	
+	REM Define the variable value
+	set NEW_PATH=%MONGODB_DIR%\mongodb\bin
+	
+	REM Add the variable to the PATH in the registry
+	reg add "HKCU\Environment" /v PATH /t REG_EXPAND_SZ /d "%PATH%;%NEW_PATH%" /f
 
     echo MongoDB %MONGODB_VERSION% has been installed successfully!
 
-    REM Cleanup downloaded and extracted files
-    RD /S /Q %MONGODB_DIR%\mongodb
+    REM Configure MongoDB as a service
+    echo Configuring MongoDB as a service...
+    %MONGODB_DIR%\bin\mongod.exe --install --serviceName "MongoDB" --serviceDisplayName "MongoDB" --serviceDescription "MongoDB Server" --dbpath "C:\mongodb\data" --logpath "C:\mongodb\mongo.log"
+    echo MongoDB service has been configured successfully!
+
+    REM Start the MongoDB service
+    echo Starting MongoDB service...
+    net start MongoDB
+
+    echo MongoDB service has been started!
 )
 
 echo Done.
